@@ -9,7 +9,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from organizador_sisrec import get_folios, make_structure, sort_files
+from organizador_sisrec import get_coeg_targets, get_folios, make_structure, sort_coeg_files
 
 
 class OrganizerApp(ttk.Frame):
@@ -19,7 +19,6 @@ class OrganizerApp(ttk.Frame):
         self.excel_path = tk.StringVar()
         self.destination_path = tk.StringVar(value=str(Path.home() / "Desktop" / "SISREC_JUL_2026"))
         self.source_path = tk.StringVar()
-        self.subfolder = tk.StringVar(value="CE")
         self.action = tk.StringVar(value="copiar")
         self.recursive = tk.BooleanVar(value=False)
         self._build()
@@ -43,18 +42,17 @@ class OrganizerApp(ttk.Frame):
         ttk.Button(self, text="Crear FOLIO / CE / T", command=self.create_structure).grid(row=3, column=2, sticky="e")
 
         ttk.Separator(self).grid(row=4, column=0, columnspan=3, sticky="ew", pady=12)
-        ttk.Label(self, text="2. Ordenar archivos", font=("Arial", 13, "bold")).grid(row=5, column=0, columnspan=3, sticky="w")
+        ttk.Label(self, text="2. Ordenar archivos COEG en CE", font=("Arial", 13, "bold")).grid(row=5, column=0, columnspan=3, sticky="w")
         ttk.Label(self, text="Carpeta de archivos:").grid(row=6, column=0, sticky="w", pady=4)
         ttk.Entry(self, textvariable=self.source_path, width=52).grid(row=6, column=1, sticky="ew", padx=8)
         ttk.Button(self, text="Seleccionar", command=self.select_source).grid(row=6, column=2)
 
         options = ttk.Frame(self)
         options.grid(row=7, column=0, columnspan=3, sticky="w", pady=6)
-        ttk.Label(options, text="Enviar a:").grid(row=0, column=0, padx=(0, 4))
-        ttk.Combobox(options, textvariable=self.subfolder, values=("CE", "T"), state="readonly", width=6).grid(row=0, column=1, padx=(0, 16))
-        ttk.Label(options, text="Acción:").grid(row=0, column=2, padx=(0, 4))
-        ttk.Combobox(options, textvariable=self.action, values=("copiar", "mover"), state="readonly", width=8).grid(row=0, column=3, padx=(0, 16))
-        ttk.Checkbutton(options, text="Buscar en subcarpetas", variable=self.recursive).grid(row=0, column=4)
+        ttk.Label(options, text="Cada archivo se enviará automáticamente a CE según su COEG_NUMERO.").grid(row=0, column=0, padx=(0, 16))
+        ttk.Label(options, text="Acción:").grid(row=0, column=1, padx=(0, 4))
+        ttk.Combobox(options, textvariable=self.action, values=("copiar", "mover"), state="readonly", width=8).grid(row=0, column=2, padx=(0, 16))
+        ttk.Checkbutton(options, text="Buscar en subcarpetas", variable=self.recursive).grid(row=0, column=3)
         ttk.Button(self, text="Ordenar archivos", command=self.sort).grid(row=8, column=2, sticky="e", pady=8)
 
         self.status = tk.StringVar(value="Selecciona el Excel para comenzar.")
@@ -106,9 +104,14 @@ class OrganizerApp(ttk.Frame):
             return
         if self.action.get() == "mover" and not messagebox.askyesno("Confirmar movimiento", "Los archivos originales se moverán. ¿Deseas continuar?"):
             return
+        try:
+            targets = get_coeg_targets(Path(self.excel_path.get()).expanduser(), "base SISREC")
+        except (OSError, ValueError) as error:
+            messagebox.showerror("No se pudo leer el Excel", str(error))
+            return
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            sort_files(Path(self.destination_path.get()).expanduser(), source, folios, self.subfolder.get(), self.action.get(), self.recursive.get(), True)
+            sort_coeg_files(Path(self.destination_path.get()).expanduser(), source, targets, self.action.get(), self.recursive.get(), True)
         result = output.getvalue().splitlines()
         summary = result[-1] if result else "Proceso terminado."
         self.status.set(summary)
