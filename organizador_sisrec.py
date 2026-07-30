@@ -49,6 +49,34 @@ def get_folios(excel_file: Path, sheet_name: str | None) -> list[str]:
     return folios
 
 
+def get_coeg_targets(excel_file: Path, sheet_name: str | None) -> dict[str, str]:
+    """Relaciona cada COEG_NUMERO con el primer FOLIO donde aparece."""
+    workbook = load_workbook(excel_file, read_only=True, data_only=True)
+    try:
+        worksheet = workbook[sheet_name] if sheet_name else workbook.active
+    except KeyError as error:
+        available = ", ".join(workbook.sheetnames)
+        raise ValueError(f"Hoja no encontrada. Disponibles: {available}") from error
+
+    header_cells = next(worksheet.iter_rows(max_row=1, values_only=True), None)
+    if not header_cells:
+        raise ValueError("La hoja no tiene encabezados.")
+    headers = [str(value).strip().upper() if value else "" for value in header_cells]
+    try:
+        folio_index = headers.index("FOLIO")
+        coeg_index = headers.index("COEG_NUMERO")
+    except ValueError as error:
+        raise ValueError("No se encontraron las columnas FOLIO y COEG_NUMERO.") from error
+
+    targets: dict[str, str] = {}
+    for row in worksheet.iter_rows(min_row=2, values_only=True):
+        folio = folio_to_text(row[folio_index] if folio_index < len(row) else None)
+        coeg_number = folio_to_text(row[coeg_index] if coeg_index < len(row) else None)
+        if folio and coeg_number and coeg_number not in targets:
+            targets[coeg_number] = folio
+    return targets
+
+
 def make_structure(base_folder: Path, folios: list[str], apply_changes: bool) -> None:
     for folio in folios:
         for subfolder in SUBFOLDERS:
@@ -114,6 +142,47 @@ def sort_files(
     print(f"Archivos clasificados: {matched}. Omitidos: {skipped}.")
 
 
+def matching_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
+    stem = Path(file_name).stem.strip()
+    if stem in targets:
+        return [stem]
+    return [
+        coeg_number
+        for coeg_number in targets
+        if re.search(rf"(?<!\d){re.escape(coeg_number)}(?!\d)", stem)
+    ]
+
+
+def sort_coeg_files(
+    base_folder: Path,
+    source_folder: Path,
+    targets: dict[str, str],
+    action: str,
+    recursive: bool,
+    apply_changes: bool,
+) -> None:
+    matched = skipped = 0
+    for source in find_files(source_folder, recursive):
+        matches = matching_coeg(source.name, targets)
+        if len(matches) != 1:
+            reason = "no se detectó un COEG_NUMERO" if not matches else f"COEG_NUMERO ambiguos: {', '.join(matches)}"
+            print(f"OMITIR: {source.name} ({reason})")
+            skipped += 1
+            continue
+
+        coeg_number = matches[0]
+        destination = avoid_collision(base_folder / targets[coeg_number] / "CE" / source.name)
+        print(f"{action.upper()}: {source} -> {destination}")
+        if apply_changes:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if action == "mover":
+                shutil.move(str(source), str(destination))
+            else:
+                shutil.copy2(source, destination)
+        matched += 1
+    print(f"Archivos COEG clasificados en CE: {matched}. Omitidos: {skipped}.")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Organizador para el Excel SISREC por FOLIO.")
     parser.add_argument("excel", type=Path, help="Archivo Excel con la columna FOLIO")
@@ -127,6 +196,10 @@ def parse_args() -> argparse.Namespace:
     sort_parser.add_argument("--subcarpeta", choices=SUBFOLDERS, required=True, help="Destino: CE o T")
     sort_parser.add_argument("--accion", choices=("copiar", "mover"), default="copiar")
     sort_parser.add_argument("--recursivo", action="store_true", help="Incluye subcarpetas del origen")
+    coeg_parser = commands.add_parser("ordenar-coeg", help="Clasifica archivos por COEG_NUMERO en la carpeta CE")
+    coeg_parser.add_argument("origen", type=Path, help="Carpeta con los archivos a clasificar")
+    coeg_parser.add_argument("--accion", choices=("copiar", "mover"), default="copiar")
+    coeg_parser.add_argument("--recursivo", action="store_true", help="Incluye subcarpetas del origen")
     return parser.parse_args()
 
 
@@ -147,11 +220,22 @@ def main() -> int:
     print(f"Folios detectados: {len(folios)}.")
     if args.command == "crear":
         make_structure(args.destino, folios, args.ejecutar)
-    else:
+    elif args.command == "ordenar":
         if not args.origen.is_dir():
             print(f"Error: no existe la carpeta de origen: {args.origen}", file=sys.stderr)
             return 2
         sort_files(args.destino, args.origen, folios, args.subcarpeta, args.accion, args.recursivo, args.ejecutar)
+    else:
+        if not args.origen.is_dir():
+            print(f"Error: no existe la carpeta de origen: {args.origen}", file=sys.stderr)
+            return 2
+        try:
+            targets = get_coeg_targets(args.excel, args.hoja)
+        except (OSError, ValueError) as error:
+            print(f"Error al leer el Excel: {error}", file=sys.stderr)
+            return 2
+        print(f"COEG_NUMERO únicos detectados: {len(targets)}.")
+        sort_coeg_files(args.destino, args.origen, targets, args.accion, args.recursivo, args.ejecutar)
     print("Cambios aplicados." if args.ejecutar else "Simulación terminada; usa --ejecutar para aplicar cambios.")
     return 0
 
