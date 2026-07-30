@@ -1,0 +1,36 @@
+name: Compilar Windows
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: python -m pip install --upgrade pip ; python -m pip install -r requirements.txt
+
+      - name: Crear ejecutable portable
+        run: pyinstaller --noconfirm --clean --windowed --onedir --name "Organizador SISREC" app_sisrec.py
+
+      - name: Empaquetar aplicación
+        shell: pwsh
+        run: Compress-Archive -Path "dist/Organizador SISREC" -DestinationPath "Organizador_SISREC_Windows.zip"
+
+      - name: Publicar descarga
+        uses: actions/upload-artifact@v4
+        with:
+          name: Organizador_SISREC_Windows
+          path: Organizador_SISREC_Windows.zip
+          if-no-files-found: error
+          retention-days: 30
