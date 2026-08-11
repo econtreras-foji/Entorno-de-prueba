@@ -50,8 +50,8 @@ def get_folios(excel_file: Path, sheet_name: str | None) -> list[str]:
     return folios
 
 
-def get_coeg_targets(excel_file: Path, sheet_name: str | None) -> dict[str, str]:
-    """Relaciona cada COEG_NUMERO con el primer FOLIO donde aparece."""
+def get_coeg_targets(excel_file: Path, sheet_name: str | None) -> dict[str, list[str]]:
+    """Relaciona cada COEG_NUMERO con todos los FOLIO donde aparece."""
     workbook = load_workbook(excel_file, read_only=True, data_only=True)
     try:
         worksheet = workbook[sheet_name] if sheet_name else workbook.active
@@ -69,12 +69,14 @@ def get_coeg_targets(excel_file: Path, sheet_name: str | None) -> dict[str, str]
     except ValueError as error:
         raise ValueError("No se encontraron las columnas FOLIO y COEG_NUMERO.") from error
 
-    targets: dict[str, str] = {}
+    targets: dict[str, list[str]] = {}
     for row in worksheet.iter_rows(min_row=2, values_only=True):
         folio = folio_to_text(row[folio_index] if folio_index < len(row) else None)
         coeg_number = folio_to_text(row[coeg_index] if coeg_index < len(row) else None)
-        if folio and coeg_number and coeg_number not in targets:
-            targets[coeg_number] = folio
+        if folio and coeg_number:
+            target_folios = targets.setdefault(coeg_number, [])
+            if folio not in target_folios:
+                target_folios.append(folio)
     return targets
 
 
@@ -182,7 +184,7 @@ def sort_files(
     print(f"Archivos clasificados: {matched}. Omitidos: {skipped}.")
 
 
-def matching_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
+def matching_coeg(file_name: str, targets: dict[str, list[str]]) -> list[str]:
     stem = Path(file_name).stem.strip()
     if stem in targets:
         return [stem]
@@ -193,7 +195,7 @@ def matching_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
     ]
 
 
-def matching_nomina_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
+def matching_nomina_coeg(file_name: str, targets: dict[str, list[str]]) -> list[str]:
     """Identifica archivos llamados exactamente NOMINA-<COEG_NUMERO>."""
     stem = Path(file_name).stem.strip()
     match = re.fullmatch(r"nomina-\s*(.+)", stem, flags=re.IGNORECASE)
@@ -206,22 +208,29 @@ def matching_nomina_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
 def sort_coeg_files(
     base_folder: Path,
     source_folder: Path,
-    targets: dict[str, str],
+    targets: dict[str, list[str]],
     action: str,
     recursive: bool,
     apply_changes: bool,
 ) -> None:
-    matched = nomina_moved = skipped = 0
+    matched = nomina_files = nomina_destinations = skipped = 0
     for source in find_files(source_folder, recursive):
         nomina_matches = matching_nomina_coeg(source.name, targets)
         if nomina_matches:
             coeg_number = nomina_matches[0]
-            destination = avoid_collision(base_folder / targets[coeg_number] / "T" / source.name)
-            print(f"MOVER NOMINA: {source} -> {destination}")
-            if apply_changes:
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(source), str(destination))
-            nomina_moved += 1
+            target_folios = targets[coeg_number]
+            for index, folio in enumerate(target_folios):
+                destination = avoid_collision(base_folder / folio / "T" / source.name)
+                operation = "MOVER NOMINA" if index == len(target_folios) - 1 else "COPIAR NOMINA"
+                print(f"{operation}: {source} -> {destination}")
+                if apply_changes:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    if index == len(target_folios) - 1:
+                        shutil.move(str(source), str(destination))
+                    else:
+                        shutil.copy2(source, destination)
+                nomina_destinations += 1
+            nomina_files += 1
             continue
 
         if Path(source.name).stem.strip().casefold().startswith("nomina-"):
@@ -237,7 +246,7 @@ def sort_coeg_files(
             continue
 
         coeg_number = matches[0]
-        destination = avoid_collision(base_folder / targets[coeg_number] / "CE" / source.name)
+        destination = avoid_collision(base_folder / targets[coeg_number][0] / "CE" / source.name)
         print(f"{action.upper()}: {source} -> {destination}")
         if apply_changes:
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -248,7 +257,8 @@ def sort_coeg_files(
         matched += 1
     print(
         f"Archivos COEG clasificados en CE: {matched}. "
-        f"Nóminas movidas a T: {nomina_moved}. Omitidos: {skipped}."
+        f"Nóminas distribuidas en T: {nomina_files} archivos, {nomina_destinations} destinos. "
+        f"Omitidos: {skipped}."
     )
 
 
