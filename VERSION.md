@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## Versión 5
+
+Los archivos llamados exactamente `NOMINA-<COEG_NUMERO>` se distribuyen en la carpeta `T` de **todos** los `FOLIO` (columna B) que tengan ese mismo `COEG_NUMERO` (columna C). Por ejemplo, si `7085` aparece en diez folios, `NOMINA-7085.pdf` queda en las diez carpetas `T` correspondientes. La nómina se copia en los destinos necesarios y el original se mueve al último destino, de modo que deja de estar en la carpeta de origen.
+
+Esta regla aplica únicamente a archivos `NOMINA-*`. Los archivos COEG normales mantienen su destino en `CE` del primer folio asociado.
+
 ## Versión 4
 
 Durante el ordenamiento por `COEG_NUMERO` (columna C), los archivos llamados exactamente `NOMINA-<COEG_NUMERO>` se detectan de forma prioritaria y se **mueven** a `T` del primer `FOLIO` (columna B) asociado al COEG. Por ejemplo, `NOMINA-7085.pdf` se mueve a la carpeta `T` del primer folio que contiene el COEG `7085`.
