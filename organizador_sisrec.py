@@ -193,6 +193,16 @@ def matching_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
     ]
 
 
+def matching_nomina_coeg(file_name: str, targets: dict[str, str]) -> list[str]:
+    """Identifica archivos llamados exactamente NOMINA-<COEG_NUMERO>."""
+    stem = Path(file_name).stem.strip()
+    match = re.fullmatch(r"nomina-\s*(.+)", stem, flags=re.IGNORECASE)
+    if not match:
+        return []
+    coeg_number = match.group(1).strip()
+    return [coeg_number] if coeg_number in targets else []
+
+
 def sort_coeg_files(
     base_folder: Path,
     source_folder: Path,
@@ -201,8 +211,24 @@ def sort_coeg_files(
     recursive: bool,
     apply_changes: bool,
 ) -> None:
-    matched = skipped = 0
+    matched = nomina_moved = skipped = 0
     for source in find_files(source_folder, recursive):
+        nomina_matches = matching_nomina_coeg(source.name, targets)
+        if nomina_matches:
+            coeg_number = nomina_matches[0]
+            destination = avoid_collision(base_folder / targets[coeg_number] / "T" / source.name)
+            print(f"MOVER NOMINA: {source} -> {destination}")
+            if apply_changes:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(source), str(destination))
+            nomina_moved += 1
+            continue
+
+        if Path(source.name).stem.strip().casefold().startswith("nomina-"):
+            print(f"OMITIR: {source.name} (NOMINA sin COEG_NUMERO válido)")
+            skipped += 1
+            continue
+
         matches = matching_coeg(source.name, targets)
         if len(matches) != 1:
             reason = "no se detectó un COEG_NUMERO" if not matches else f"COEG_NUMERO ambiguos: {', '.join(matches)}"
@@ -220,7 +246,10 @@ def sort_coeg_files(
             else:
                 shutil.copy2(source, destination)
         matched += 1
-    print(f"Archivos COEG clasificados en CE: {matched}. Omitidos: {skipped}.")
+    print(
+        f"Archivos COEG clasificados en CE: {matched}. "
+        f"Nóminas movidas a T: {nomina_moved}. Omitidos: {skipped}."
+    )
 
 
 def matching_id(file_name: str, targets: dict[str, list[str]]) -> list[str]:
