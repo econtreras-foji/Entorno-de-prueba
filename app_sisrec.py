@@ -34,7 +34,7 @@ class OrganizerApp(ttk.Frame):
         self._build()
 
     def _build(self) -> None:
-        self.window.title("Organizador SISREC v4")
+        self.window.title("Organizador SISREC v5")
         self.window.resizable(False, False)
         self.grid(sticky="nsew")
         self.columnconfigure(1, weight=1)
@@ -61,7 +61,7 @@ class OrganizerApp(ttk.Frame):
         options.grid(row=7, column=0, columnspan=3, sticky="w", pady=6)
         ttk.Label(
             options,
-            text="COEG va a CE; NOMINA-<COEG_NUMERO> se mueve automáticamente a T.",
+            text="COEG va a CE; NOMINA-<COEG_NUMERO> se copia en todos los T coincidentes.",
         ).grid(row=0, column=0, padx=(0, 16))
         ttk.Label(options, text="Acción:").grid(row=0, column=1, padx=(0, 4))
         ttk.Combobox(options, textvariable=self.action, values=("copiar", "mover"), state="readonly", width=8).grid(row=0, column=2, padx=(0, 16))
@@ -135,7 +135,8 @@ class OrganizerApp(ttk.Frame):
         action_text = "moverán" if self.action.get() == "mover" else "copiarán"
         confirmation = (
             f"Los archivos COEG se {action_text} en CE.\n\n"
-            "Los archivos llamados NOMINA-<COEG_NUMERO> se moverán siempre a T.\n\n"
+            "Los archivos llamados NOMINA-<COEG_NUMERO> se copiarán en todos los T del mismo COEG.\n"
+            "Al finalizar, el original se moverá al último T correspondiente.\n\n"
             "¿Deseas continuar?"
         )
         if not messagebox.askyesno("Confirmar ordenamiento", confirmation):
