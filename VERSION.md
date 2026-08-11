@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## Versión 4
+
+Durante el ordenamiento por `COEG_NUMERO` (columna C), los archivos llamados exactamente `NOMINA-<COEG_NUMERO>` se detectan de forma prioritaria y se **mueven** a `T` del primer `FOLIO` (columna B) asociado al COEG. Por ejemplo, `NOMINA-7085.pdf` se mueve a la carpeta `T` del primer folio que contiene el COEG `7085`.
+
+Los demás archivos COEG conservan el comportamiento anterior y se copian o mueven a `CE` según la acción seleccionada. Las nóminas sin un COEG válido se omiten y se informan en el resumen.
+
 ## Versión 3
 
 Clasifica respaldos por `ID` (columna A) hacia `T` de cada `FOLIO` (columna B). Excluye documentos cuyo `TIPO_DOCUMENTO` (columna G) contenga las palabras “Convenio” y “Becados”, con o sin la palabra “de”.
