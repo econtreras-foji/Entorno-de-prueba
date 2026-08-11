@@ -9,7 +9,14 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from organizador_sisrec import get_coeg_targets, get_folios, get_id_targets, make_structure, sort_coeg_files, sort_id_files
+from organizador_sisrec import (
+    get_coeg_targets,
+    get_folios,
+    get_id_targets,
+    make_structure,
+    sort_coeg_files,
+    sort_id_files,
+)
 
 
 class OrganizerApp(ttk.Frame):
@@ -27,7 +34,7 @@ class OrganizerApp(ttk.Frame):
         self._build()
 
     def _build(self) -> None:
-        self.window.title("Organizador SISREC v3")
+        self.window.title("Organizador SISREC v4")
         self.window.resizable(False, False)
         self.grid(sticky="nsew")
         self.columnconfigure(1, weight=1)
@@ -52,7 +59,10 @@ class OrganizerApp(ttk.Frame):
 
         options = ttk.Frame(self)
         options.grid(row=7, column=0, columnspan=3, sticky="w", pady=6)
-        ttk.Label(options, text="Cada archivo se enviará automáticamente a CE según su COEG_NUMERO.").grid(row=0, column=0, padx=(0, 16))
+        ttk.Label(
+            options,
+            text="COEG va a CE; NOMINA-<COEG_NUMERO> se mueve automáticamente a T.",
+        ).grid(row=0, column=0, padx=(0, 16))
         ttk.Label(options, text="Acción:").grid(row=0, column=1, padx=(0, 4))
         ttk.Combobox(options, textvariable=self.action, values=("copiar", "mover"), state="readonly", width=8).grid(row=0, column=2, padx=(0, 16))
         ttk.Checkbutton(options, text="Buscar en subcarpetas", variable=self.recursive).grid(row=0, column=3)
@@ -122,7 +132,13 @@ class OrganizerApp(ttk.Frame):
             if folios:
                 messagebox.showerror("Falta la carpeta", "Selecciona la carpeta que contiene los archivos.")
             return
-        if self.action.get() == "mover" and not messagebox.askyesno("Confirmar movimiento", "Los archivos originales se moverán. ¿Deseas continuar?"):
+        action_text = "moverán" if self.action.get() == "mover" else "copiarán"
+        confirmation = (
+            f"Los archivos COEG se {action_text} en CE.\n\n"
+            "Los archivos llamados NOMINA-<COEG_NUMERO> se moverán siempre a T.\n\n"
+            "¿Deseas continuar?"
+        )
+        if not messagebox.askyesno("Confirmar ordenamiento", confirmation):
             return
         try:
             targets = get_coeg_targets(Path(self.excel_path.get()).expanduser(), "base SISREC")
