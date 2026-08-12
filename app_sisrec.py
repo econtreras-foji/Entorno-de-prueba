@@ -34,7 +34,7 @@ class OrganizerApp(ttk.Frame):
         self._build()
 
     def _build(self) -> None:
-        self.window.title("Organizador SISREC v5")
+        self.window.title("Organizador SISREC v6")
         self.window.resizable(False, False)
         self.grid(sticky="nsew")
         self.columnconfigure(1, weight=1)
@@ -136,7 +136,7 @@ class OrganizerApp(ttk.Frame):
         confirmation = (
             f"Los archivos COEG se {action_text} en CE.\n\n"
             "Los archivos llamados NOMINA-<COEG_NUMERO> se copiarán en todos los T del mismo COEG.\n"
-            "Al finalizar, el original se moverá al último T correspondiente.\n\n"
+            "El archivo original se mantendrá en la carpeta de origen.\n\n"
             "¿Deseas continuar?"
         )
         if not messagebox.askyesno("Confirmar ordenamiento", confirmation):
