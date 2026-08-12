@@ -1,5 +1,9 @@
 # Historial de versiones
 
+## Versión 6
+
+Corrige el ordenamiento de archivos `NOMINA-<COEG_NUMERO>` para que sean **solo copiados** a todas las carpetas `T` de los folios que coinciden con ese `COEG_NUMERO`. El archivo original permanece siempre en la carpeta de origen.
+
 ## Versión 5
 
 Los archivos llamados exactamente `NOMINA-<COEG_NUMERO>` se distribuyen en la carpeta `T` de **todos** los `FOLIO` (columna B) que tengan ese mismo `COEG_NUMERO` (columna C). Por ejemplo, si `7085` aparece en diez folios, `NOMINA-7085.pdf` queda en las diez carpetas `T` correspondientes. La nómina se copia en los destinos necesarios y el original se mueve al último destino, de modo que deja de estar en la carpeta de origen.
