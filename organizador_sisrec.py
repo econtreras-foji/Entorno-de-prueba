@@ -219,16 +219,12 @@ def sort_coeg_files(
         if nomina_matches:
             coeg_number = nomina_matches[0]
             target_folios = targets[coeg_number]
-            for index, folio in enumerate(target_folios):
+            for folio in target_folios:
                 destination = avoid_collision(base_folder / folio / "T" / source.name)
-                operation = "MOVER NOMINA" if index == len(target_folios) - 1 else "COPIAR NOMINA"
-                print(f"{operation}: {source} -> {destination}")
+                print(f"COPIAR NOMINA: {source} -> {destination}")
                 if apply_changes:
                     destination.parent.mkdir(parents=True, exist_ok=True)
-                    if index == len(target_folios) - 1:
-                        shutil.move(str(source), str(destination))
-                    else:
-                        shutil.copy2(source, destination)
+                    shutil.copy2(source, destination)
                 nomina_destinations += 1
             nomina_files += 1
             continue
