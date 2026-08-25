@@ -16,6 +16,8 @@ from organizador_sisrec import (
     make_structure,
     sort_coeg_files,
     sort_id_files,
+    validate_structure,
+    write_validation_report,
 )
 
 
@@ -34,7 +36,7 @@ class OrganizerApp(ttk.Frame):
         self._build()
 
     def _build(self) -> None:
-        self.window.title("Organizador SISREC v6")
+        self.window.title("Organizador SISREC v7")
         self.window.resizable(False, False)
         self.grid(sticky="nsew")
         self.columnconfigure(1, weight=1)
@@ -80,8 +82,15 @@ class OrganizerApp(ttk.Frame):
         ttk.Combobox(t_options, textvariable=self.t_action, values=("copiar", "mover"), state="readonly", width=8).grid(row=0, column=2, padx=(0, 16))
         ttk.Checkbutton(t_options, text="Buscar en subcarpetas", variable=self.t_recursive).grid(row=0, column=3)
         ttk.Button(self, text="Ordenar respaldos en T", command=self.sort_t).grid(row=13, column=2, sticky="e", pady=8)
+        ttk.Separator(self).grid(row=14, column=0, columnspan=3, sticky="ew", pady=12)
+        ttk.Label(self, text="4. Validar trabajo realizado", font=("Arial", 13, "bold")).grid(row=15, column=0, columnspan=2, sticky="w")
+        ttk.Button(self, text="Validar CE y T", command=self.validate).grid(row=15, column=2, sticky="e")
+        ttk.Label(
+            self,
+            text="Revisa COEG en CE e ID válidos en T. Genera reporte de faltantes en la carpeta destino.",
+        ).grid(row=16, column=0, columnspan=3, sticky="w", pady=(4, 0))
         self.status = tk.StringVar(value="Selecciona el Excel para comenzar.")
-        ttk.Label(self, textvariable=self.status, wraplength=580).grid(row=14, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        ttk.Label(self, textvariable=self.status, wraplength=580).grid(row=17, column=0, columnspan=3, sticky="w", pady=(10, 0))
 
     def select_excel(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Archivos Excel", "*.xlsx *.xlsm")])
@@ -175,6 +184,33 @@ class OrganizerApp(ttk.Frame):
         summary = result[-1] if result else "Proceso terminado."
         self.status.set(summary)
         messagebox.showinfo("Completado", summary)
+
+    def validate(self) -> None:
+        folios = self.folios()
+        destination = Path(self.destination_path.get()).expanduser()
+        if not folios or not destination.is_dir():
+            if folios:
+                messagebox.showerror("Falta la carpeta", "Selecciona la carpeta raíz donde se crearon los folios.")
+            return
+        try:
+            excel = Path(self.excel_path.get()).expanduser()
+            results = validate_structure(
+                destination,
+                folios,
+                get_coeg_targets(excel, "base SISREC"),
+                get_id_targets(excel, "base SISREC"),
+            )
+            report = write_validation_report(destination, results)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("No se pudo validar", str(error))
+            return
+        summary = (
+            f"Carpetas faltantes: {len(results['missing_folders'])}. "
+            f"COEG faltantes en CE: {len(results['missing_ce'])}. "
+            f"ID faltantes en T: {len(results['missing_t'])}."
+        )
+        self.status.set(f"{summary} Reporte: {report.name}")
+        messagebox.showinfo("Validación terminada", summary)
 
 
 def main() -> None:
