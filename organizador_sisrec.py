@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 
 
 SUBFOLDERS = ("CE", "T")
+VALIDATION_REPORT_NAME = "reporte_validacion_sisrec.txt"
 
 
 def folio_to_text(value: object) -> str | None:
@@ -269,6 +270,87 @@ def matching_id(file_name: str, targets: dict[str, list[str]]) -> list[str]:
     ]
 
 
+def file_matches_value(file_name: str, value: str) -> bool:
+    stem = Path(file_name).stem.strip()
+    return stem == value or bool(re.search(rf"(?<!\d){re.escape(value)}(?!\d)", stem))
+
+
+def folder_has_value(folder: Path, value: str, exclude_nomina: bool = False) -> bool:
+    if not folder.is_dir():
+        return False
+    for path in folder.iterdir():
+        if not path.is_file():
+            continue
+        if exclude_nomina and path.stem.strip().casefold().startswith("nomina-"):
+            continue
+        if file_matches_value(path.name, value):
+            return True
+    return False
+
+
+def validate_structure(
+    base_folder: Path,
+    folios: list[str],
+    coeg_targets: dict[str, list[str]],
+    id_targets: dict[str, list[str]],
+) -> dict[str, object]:
+    """Verifica la estructura SISREC y los archivos esperados en CE y T."""
+    missing_folders: list[str] = []
+    for folio in folios:
+        for subfolder in SUBFOLDERS:
+            folder = base_folder / folio / subfolder
+            if not folder.is_dir():
+                missing_folders.append(str(folder.relative_to(base_folder)))
+
+    missing_ce: list[str] = []
+    for coeg_number, target_folios in coeg_targets.items():
+        target_folio = target_folios[0]
+        folder = base_folder / target_folio / "CE"
+        if not folder_has_value(folder, coeg_number, exclude_nomina=True):
+            missing_ce.append(f"FOLIO {target_folio}/CE | COEG_NUMERO {coeg_number}")
+
+    missing_t: list[str] = []
+    for identifier, target_folios in id_targets.items():
+        for folio in target_folios:
+            folder = base_folder / folio / "T"
+            if not folder_has_value(folder, identifier):
+                missing_t.append(f"FOLIO {folio}/T | ID {identifier}")
+
+    return {
+        "missing_folders": missing_folders,
+        "missing_ce": missing_ce,
+        "missing_t": missing_t,
+    }
+
+
+def write_validation_report(base_folder: Path, results: dict[str, object]) -> Path:
+    missing_folders = results["missing_folders"]
+    missing_ce = results["missing_ce"]
+    missing_t = results["missing_t"]
+    lines = [
+        "Reporte de validación SISREC",
+        f"Carpeta revisada: {base_folder}",
+        "",
+        f"Carpetas CE o T faltantes: {len(missing_folders)}",
+        f"Archivos COEG faltantes en CE: {len(missing_ce)}",
+        f"Archivos ID faltantes en T: {len(missing_t)}",
+        "",
+        "CARPETAS FALTANTES",
+        *(missing_folders or ["Ninguna."]),
+        "",
+        "COEG FALTANTES EN CE",
+        *(missing_ce or ["Ninguno."]),
+        "",
+        "ID FALTANTES EN T",
+        *(missing_t or ["Ninguno."]),
+        "",
+        "Nota: las nóminas no se validan como obligatorias porque el Excel no indica cuáles archivos NOMINA existen.",
+    ]
+    report = base_folder / VALIDATION_REPORT_NAME
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report
+
+
 def sort_id_files(
     base_folder: Path,
     source_folder: Path,
@@ -328,6 +410,7 @@ def parse_args() -> argparse.Namespace:
     id_parser.add_argument("origen", type=Path, help="Carpeta con los respaldos a clasificar")
     id_parser.add_argument("--accion", choices=("copiar", "mover"), default="copiar")
     id_parser.add_argument("--recursivo", action="store_true", help="Incluye subcarpetas del origen")
+    commands.add_parser("validar", help="Valida COEG en CE e ID en T y crea un reporte")
     return parser.parse_args()
 
 
@@ -364,7 +447,7 @@ def main() -> int:
             return 2
         print(f"COEG_NUMERO únicos detectados: {len(targets)}.")
         sort_coeg_files(args.destino, args.origen, targets, args.accion, args.recursivo, args.ejecutar)
-    else:
+    elif args.command == "ordenar-id":
         if not args.origen.is_dir():
             print(f"Error: no existe la carpeta de origen: {args.origen}", file=sys.stderr)
             return 2
@@ -375,6 +458,21 @@ def main() -> int:
             return 2
         print(f"IDs válidos detectados: {len(targets)}.")
         sort_id_files(args.destino, args.origen, targets, args.accion, args.recursivo, args.ejecutar)
+    else:
+        try:
+            coeg_targets = get_coeg_targets(args.excel, args.hoja)
+            id_targets = get_id_targets(args.excel, args.hoja)
+            results = validate_structure(args.destino, folios, coeg_targets, id_targets)
+            report = write_validation_report(args.destino, results)
+        except (OSError, ValueError) as error:
+            print(f"Error durante la validación: {error}", file=sys.stderr)
+            return 2
+        print(
+            f"Validación terminada. Carpetas faltantes: {len(results['missing_folders'])}. "
+            f"COEG faltantes en CE: {len(results['missing_ce'])}. "
+            f"ID faltantes en T: {len(results['missing_t'])}."
+        )
+        print(f"Reporte: {report}")
     print("Cambios aplicados." if args.ejecutar else "Simulación terminada; usa --ejecutar para aplicar cambios.")
     return 0
 
