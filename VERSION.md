@@ -1,5 +1,9 @@
 # Historial de versiones
 
+## Versión 7
+
+Agrega **Validar CE y T**: revisa la estructura existente según el Excel y crea `reporte_validacion_sisrec.txt` en la carpeta raíz. Informa carpetas `CE` o `T` faltantes, COEG esperados que no están en `CE` e IDs válidos que no están en `T`. No marca nóminas como obligatorias porque el Excel no indica cuáles existen.
+
 ## Versión 6
 
 Corrige el ordenamiento de archivos `NOMINA-<COEG_NUMERO>` para que sean **solo copiados** a todas las carpetas `T` de los folios que coinciden con ese `COEG_NUMERO`. El archivo original permanece siempre en la carpeta de origen.
